@@ -414,3 +414,7 @@ rpart.plot(x = Diabetes_model, yesno = 2, type = 0, extra = 0)
 
 ```
 
+De acuerdo a los datos de pacientes obtenidos del archivo diabetesDS se construyó un modelo de predicción usando arboles de Clasificación que consigue un 85% de predicciones.
+El modelo construido pudo predecir a pacientes con diabetes en un 79.8% del total de los casos de pacientes con diabetes y también realizo una predicción de pacientes sin diabetes en un 87,8% del total de los casos de pacientes sin diabetes
+El modelo construido fallo en un 15% del total de los diagnósticos de la siguiente forma: del total de pacientes predichos como diabéticos el 12,2% son falsos positivos y del total de pacientes predichos como sin diabetes un 20,2% son falsos negativos.
+
