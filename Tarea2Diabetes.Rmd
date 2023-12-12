@@ -1,0 +1,416 @@
+---
+title: "TareaDiabetes"
+author: "GRUPO 3"
+date: "2023-12-08"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+#Librerias
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggcorrplot)
+library(caret)
+library(MASS)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+library(grid)
+library(gridExtra)
+library(corrplot)
+library(rattle)
+
+```
+
+```{r}
+
+path <- '../Datasets/diabetes2.csv'
+diabetesDS <- read.csv(path)
+
+diabetesDS_clean <- diabetesDS %>%
+  mutate(
+    Outcome = as.factor(Outcome) # Convertir True/False a factor
+  ) %>%
+  na.omit() # Eliminar valores nulos con na.omit()
+
+```
+
+**Variables más significantes**
+
+
+```{r}
+
+ggplot(diabetesDS_clean, aes(x = Pregnancies)) +
+  ggtitle("Distribución por número de embarazos") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_histogram(
+    binwidth = 1,
+    colour = "black",
+    fill = "deepskyblue"
+  ) + ylab("Cantidad") + xlab("Embarazos")
+
+```
+
+```{r}
+
+ggplot(diabetesDS_clean, aes(x = Glucose)) +
+  ggtitle("Distribución por nivel de glucosa") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_histogram(
+    binwidth = 1,
+    colour = "black",
+    fill = "lightgreen"
+  ) + ylab("Cantidad") + xlab("Nivel de glucosa")
+
+```
+
+```{r}
+
+ggplot(diabetesDS_clean, aes(x = BMI)) +
+  ggtitle("Distribución por índice de masa corporal") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_histogram(
+    binwidth = 1,
+    colour = "black",
+    fill = "lightpink"
+  ) + ylab("Cantidad") + xlab("Índice de masa corporal")
+
+```
+
+```{r message=FALSE, warning=FALSE}
+
+ggplot(diabetesDS_clean, aes(x = DiabetesPedigreeFunction)) +
+  ggtitle("Distribución por función pedigree de diabetes") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_histogram(aes(y = 100 * (..count..) / sum(..count..)),
+                 colour = "black",
+                 fill = "lightyellow") + ylab("Porcentaje") + xlab("Función pedigree de diabetes")
+
+```
+
+**Correlación de variables en base al Outcome**
+
+```{r message=FALSE, warning=FALSE}
+
+attach(diabetesDS_clean)
+par(mfrow = c(2, 4))
+
+boxplot(
+  Pregnancies ~ Outcome,
+  main = "Embarazos",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "deepskyblue",
+)
+
+boxplot(
+  Glucose ~ Outcome,
+  main = "Nivel de glucosa",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "lightgreen"
+)
+
+boxplot(
+  BloodPressure ~ Outcome,
+  main = "Presión arterial",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "gold"
+)
+
+boxplot(
+  SkinThickness ~ Outcome,
+  main = "Grosor de\n la piel",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "aquamarine"
+)
+
+boxplot(
+  Insulin ~ Outcome,
+  main = "Nivel de insulina",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "yellow"
+)
+
+boxplot(
+  BMI ~ Outcome,
+  main = "Índice de masa\n corporal",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "lightpink"
+)
+
+boxplot(
+  DiabetesPedigreeFunction ~ Outcome,
+  main = "Función pedigree\n de diabetes",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "lightyellow"
+)
+
+boxplot(
+  Age ~ Outcome,
+  main = "Edad",
+  names = c("Sí", "No"),
+  xlab = "¿Tiene diabetes?",
+  ylab = "",
+  col = "palegreen3"
+)
+
+box(which = "outer", lty = "solid")
+
+```
+
+La presión arterial y el grosor de la piel no se relacionan con la diabetes de una manera consistente. Por lo tanto, no se incluirán en los modelos. Otras variables, por otro lado, se relacionan más o menos con la diabetes, por lo que se mantendrán.
+
+
+```{r}
+
+diabetesDS_clean$BloodPressure <- NULL
+diabetesDS_clean$SkinThickness <- NULL
+
+```
+
+**Regresión Logística**
+
+```{r}
+
+set.seed(1)
+index <- sample(2, nrow(diabetesDS_clean), prob = c(0.8, 0.2), replace = TRUE)
+Diabetes_train <- diabetesDS_clean[index==1, ] # Train data
+Diabetes_test <- diabetesDS_clean[index == 2, ] # Test data
+
+# Regresión logística
+diabetesDSglm <- glm(formula = Outcome ~ .,data = Diabetes_test,family = "binomial")
+summary(diabetesDSglm)
+
+probs.glm <- diabetesDSglm %>% predict(type = "response")
+
+bool <- probs.glm > 0.5
+pred <- rep("False", length(bool))
+pred[bool] <- "True"
+
+real <- Diabetes_test$Outcome
+table(pred, real)
+
+## Matriz de confusión
+cm_glm <- caret::confusionMatrix(as.factor(pred), as.factor(real))
+cm_glm
+
+```
+
+**Análisis discriminante lineal**
+
+```{r}
+
+# Análisis discriminante lineal
+lda.fit <- lda(formula = Outcome ~ ., data = Diabetes_test)
+lda.fit
+
+lda.class <- predict(lda.fit)$class
+lda.class %>% head
+
+# Matriz de confusión
+cm_lda <- caret::confusionMatrix(lda.class, as.factor(real))
+cm_lda
+
+```
+
+**Análisis Discriminante Cuadrático**
+
+```{r}
+
+# Análisis Discriminante Cuadrático
+qda.fit <- qda(formula = Outcome ~ ., data = Diabetes_test)
+qda.fit
+qda.class <- predict(qda.fit)$class
+qda.class %>% head
+
+# Matriz de confusión
+cm_qda <- caret::confusionMatrix(qda.class, as.factor(real))
+cm_qda
+
+```
+
+**Naive Bayes**
+
+```{r}
+
+#Naive Bayes
+nb.fit <- naiveBayes(formula = Outcome ~ .,data = Diabetes_test)
+
+nb.pred <- nb.fit %>% predict(Diabetes_test)
+
+# Matriz de confusión
+gm_bayes <- caret::confusionMatrix(nb.pred,as.factor(real))
+gm_bayes
+
+```
+
+**Preción de los modelos**
+
+```{r}
+
+graphics::fourfoldplot(cm_glm$table, conf.level = 0.95, margin = 1, 
+                       main = paste("Precisión de la regresión logística (",round(cm_glm$overall[1]*100),"%)", sep = ""))
+
+graphics::fourfoldplot(cm_lda$table, conf.level = 0.95, margin = 1, 
+                       main = paste("Precisión del análisis discriminante lineal (",round(cm_lda$overall[1]*100),"%)", sep = ""))
+
+graphics::fourfoldplot(cm_qda$table, conf.level = 0.95, margin = 1, 
+                       main = paste("Precisión del análisis discriminante cuadrático (",round(cm_qda$overall[1]*100),"%)", sep = ""))
+
+graphics::fourfoldplot(gm_bayes$table, conf.level = 0.95, margin = 1, 
+                       main = paste("Precisión de Naive Bayes (",round(gm_bayes$overall[1]*100),"%)", sep = ""))
+
+```
+
+**K-means**
+
+```{r message=FALSE, warning=FALSE}
+
+setwd("/cloud/project/Datasets")
+diabetes <- read_csv("diabetes2.csv")
+
+
+diabetes %>% names
+
+data <- diabetes
+mi_formula <- Outcome ~ .
+data$Outcome <- diabetes$Outcome %>% as.factor
+
+data.data <- data %>% dplyr::select(-Outcome)
+
+data.labs <- data$Outcome
+
+data.data %>% dim
+data.labs %>% table
+
+sd.data <- data.data %>% scale # reescalamos los datos
+
+data.dist <- sd.data %>% dist # se calcula la distancia
+data.dist %>% hclust # dendograma
+data.dist %>% hclust %>% plot # graficamos
+
+
+# Diferentes tipos de enlaces -------------------------------------------
+
+par(mfrow = c(1, 3))
+plot(hclust(data.dist), xlab = "", sub = "", ylab = "",
+     labels = data.labs , main = "Complete Linkage")
+
+plot(hclust(data.dist , method = "average"),
+     labels = data.labs , main = "Average Linkage",
+     xlab = "", sub = "", ylab = "")
+
+plot(hclust(data.dist , method = "single"),
+     labels = data.labs , main = "Single Linkage",
+     xlab = "", sub = "", ylab = "")
+
+# cortando el dendograma
+
+hc.out0 <- sd.data %>% dist %>% hclust
+hc.clusters0 <- hc.out0 %>% cutree(2)
+table(hc.clusters0,data.labs)
+
+par(mfrow = c(1, 1))
+hc.out0 %>% plot(labels = data.labs)
+hc.out0 %>% rect.hclust(4,border = "green")
+
+# probando otras distancias
+
+hc.out <- sd.data %>% dist(method = "manhattan") %>% hclust
+hc.out %>% plot(labels = data.labs)
+hc.clusters <- hc.out %>% cutree(2)
+table(hc.clusters,data.labs)
+
+# probando diferentes métodos
+
+hc.out <- sd.data %>% dist %>% hclust(method = "median")
+hc.clusters <- hc.out %>% cutree(2)
+table(hc.clusters,data.labs)
+
+hc.out <- sd.data %>% dist %>% hclust(method = "centroid")
+hc.clusters <- hc.out %>% cutree(2)
+table(hc.clusters,data.labs)
+
+hc.out <- sd.data %>% dist(method = "manhattan") %>% hclust(method = "median")
+hc.clusters <- hc.out %>% cutree(2)
+table(hc.clusters,data.labs)
+
+hc.out <- sd.data %>% dist(method = "manhattan") %>% hclust(method = "centroid")
+hc.clusters <- hc.out %>% cutree(2)
+table(hc.clusters,data.labs)
+
+
+
+```
+
+**Clustering jerárquico**
+
+```{r}
+
+# Usando k-medias ---------------------------------------------------------
+
+set.seed (2)
+km.out <- sd.data %>% kmeans(centers = 2,nstart = 20)
+km.clusters <- km.out$cluster
+
+table(km.clusters,data.labs) # data real
+table(km.clusters,hc.clusters0) # lo obtenido por clustering jerárquico
+
+factoextra::fviz_cluster(km.out,data.data,ellipse.type = "t")
+
+```
+
+**Árbol de clasificación**
+
+```{r}
+
+library(rpart)
+library(rpart.plot)
+
+fit <- rpart(Outcome ~ .,
+             data = diabetesDS_clean,
+             method = 'class')
+
+fit %>% summary
+
+diabetesDS_clean %>% glimpse
+diabetesDS_clean <- diabetesDS_clean %>%
+  mutate(BMI= as.numeric(BMI)) %>%
+  na.omit()
+
+
+diabetesDS_clean %>% glimpse         
+
+fit <- rpart(Outcome ~ .,
+             data = diabetesDS_clean,
+             method = 'class')
+
+Diabetes_model <- rpart(formula = Outcome ~., 
+                        data = diabetesDS_clean, 
+                        method = "class")
+
+rpart.plot(x = Diabetes_model, yesno = 2, type = 0, extra = 0)
+
+```
+
